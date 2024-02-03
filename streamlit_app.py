@@ -96,6 +96,7 @@ def create_single_sheet_xlsx_timetables(combinations, filename, time_slots, clas
         # Create a dark grey border style
         dark_grey_side = Side(border_style="thin", color="404040")
         dark_grey_border = Border(left=dark_grey_side, right=dark_grey_side, top=dark_grey_side, bottom=dark_grey_side)
+
         # Apply the border to the header row
         for col in range(1, 7):  # Columns A-G
             ws.cell(row=current_row, column=col).border = dark_grey_border
@@ -111,7 +112,8 @@ def create_single_sheet_xlsx_timetables(combinations, filename, time_slots, clas
                     if (session['start_time'], session['end_time']) == time_slot:
                         day_col = days.index(session['day']) + 2
                         cell = ws.cell(row=current_row, column=day_col)
-                        cell.value = f"{cls['name']}\n(Group {cls['group']})"
+                        class_room_info = session.get('class_room', 'N/A')  # Retrieve class room or default to 'N/A'
+                        cell.value = f"{cls['name']}\n(Group {cls['group']}\nRoom: {class_room_info})"
                         cell.fill = class_colors[cls['name']]
                         cell.alignment = Alignment(wrap_text=True)
 
@@ -169,14 +171,22 @@ def class_logger():
         day = st.selectbox(f"Day {i+1}", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], key=f"day{i}")
         start_time = st.time_input(f"Start Time {i+1}", key=f"start_time{i}")
         end_time = st.time_input(f"End Time {i+1}", key=f"end_time{i}")
-        schedule_entries.append((day, start_time, end_time))
+        class_room = st.text_input(f"Class Room for Day {i+1}", key=f"class_room{i}")
+        schedule_entries.append((day, start_time, end_time, class_room))
 
     # Submission button
     submit_button = st.button("Log Class")
 
     # Handling the submission
     if submit_button and class_name and group_section:
-        schedule = [{"day": day, "start_time": start_time.strftime("%H:%M"), "end_time": end_time.strftime("%H:%M")} for day, start_time, end_time in schedule_entries]
+        schedule = [
+            {
+                "day": day, 
+                "start_time": start_time.strftime("%H:%M"), 
+                "end_time": end_time.strftime("%H:%M"),
+                "class_room": class_room
+            } for day, start_time, end_time, class_room in schedule_entries
+        ]
         
         new_class = {
             "name": class_name.capitalize(),
