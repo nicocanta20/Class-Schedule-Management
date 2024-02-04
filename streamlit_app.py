@@ -247,7 +247,7 @@ def class_logger():
     for i in range(num_days):
         cols = st.columns(4)
         with cols[0]:
-            day = st.selectbox(f"Day {i+1}", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], key=f"day{i}")
+            day = st.selectbox(f"Day {i+1}", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], key=f"day{i}")
         with cols[1]:
             start_time = st.time_input(f"Start Time {i+1}", key=f"start_time{i}")
         with cols[2]:
