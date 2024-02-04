@@ -183,23 +183,47 @@ def generate_ics_file_for_classes(selected_classes, classes, start_date_str, end
 
 # Main app function
 def main():
-    st.title("Class Schedule Management")
+    st.title("Class Schedule Management 🎓")
+    st.markdown("""
+        <style>
+        /* Global styles */
+        html, body, [class*="st-"] {
+            font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+        }
+        /* Style buttons for interactivity */
+        .stButton>button {
+            border: none;
+            border-radius: px;
+            padding: 10px 24px;
+            margin: 5px 0px;
+            color: white;
+            background-color: #008CBA;
+        }
+        .stButton>button:hover {
+            background-color: #005f73;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
     # Credit for the creator
-    st.write("Created by [Nicolas Cantarovici](https://www.linkedin.com/in/nicolas-cantarovici-3b85a0198)")
+    st.markdown("Created by [Nicolas Cantarovici](https://www.linkedin.com/in/nicolas-cantarovici-3b85a0198)")
+    st.markdown("""
+    <div >
+        <ol>
+            <li><strong>Log Your Classes:</strong> Start by entering all classes you're interested in. Whether you're attending or just considering, log them to see all possible timetables.</li>
+            <li><strong>Create Timetables:</strong> Navigate to the 'Timetable Creator' tab to generate custom timetables based on your classes. Experiment with different combinations to suit your schedule best.</li>
+            <li><strong>Download & Share:</strong> Once satisfied, download your timetable and share it with friends or keep it for your reference.</li>
+        </ol>
+    </div>
+""", unsafe_allow_html=True)
 
-    # Explanation of the app's workflow
-    st.write("Welcome to the Class Schedule Management app. First, log all the classes you want to attend or consider for the timetable combinations. Then, proceed to the Timetable Creator to generate and download your timetables.")
 
     # Create tabs for different functionalities
-    # tab1, tab2 = st.tabs(["Class Logger", "Timetable Creator"])
-    tab1, tab2, tab3 = st.tabs(["Class Logger", "Timetable Creator", "Add timetable to Calendar"])
+    tab1, tab2, tab3 = st.tabs(["📚 Class Logger", "⏱️ Timetable Creator", "🗓️ Add to Calendar"])
 
-    # Class Logger tab
     with tab1:
         class_logger()
 
-    # Timetable Creator tab
     with tab2:
         timetable_creator()
 
@@ -221,10 +245,15 @@ def class_logger():
     num_days = st.number_input("Number of days per week", min_value=1, max_value=10, step=1, key='num_days')
     schedule_entries = []
     for i in range(num_days):
-        day = st.selectbox(f"Day {i+1}", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], key=f"day{i}")
-        start_time = st.time_input(f"Start Time {i+1}", key=f"start_time{i}")
-        end_time = st.time_input(f"End Time {i+1}", key=f"end_time{i}")
-        class_room = st.text_input(f"Class Room for Day {i+1}", key=f"class_room{i}")
+        cols = st.columns(4)
+        with cols[0]:
+            day = st.selectbox(f"Day {i+1}", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], key=f"day{i}")
+        with cols[1]:
+            start_time = st.time_input(f"Start Time {i+1}", key=f"start_time{i}")
+        with cols[2]:
+            end_time = st.time_input(f"End Time {i+1}", key=f"end_time{i}")
+        with cols[3]:
+            class_room = st.text_input(f"Class Room {i+1}", key=f"class_room{i}")
         schedule_entries.append((day, start_time, end_time, class_room))
 
     # Submission button
@@ -323,14 +352,12 @@ def generate_ics_tab():
     if not os.path.exists('classes.json'):
         st.warning("No classes logged yet. Please log some classes first.")
         return
-    
-    st.write('Select the classes you choose to take after seeing the timetables and generate an ICS file to add to your calendar.')
-    
+        
     with open('classes.json', 'r') as file:
         classes = json.load(file)
 
     class_options = [f"{cls['name']} - Group {cls['group']}" for cls in classes]
-    selected_classes = st.multiselect("Select classes to include in your ICS file:", class_options)
+    selected_classes = st.multiselect("Select classes you will be attending to add to your calendar", class_options)
 
     start_date = st.date_input("Semester Start Date")
     end_date = st.date_input("Semester End Date")
