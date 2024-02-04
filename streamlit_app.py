@@ -1,12 +1,14 @@
 import streamlit as st
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from itertools import combinations
 import random
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 import os
+from icalendar import Calendar, Event, vDatetime
+import pytz
 
 # CLASS LOGGER FUNCTIONS
 
@@ -132,6 +134,53 @@ def create_single_sheet_xlsx_timetables(combinations, filename, time_slots, clas
 
 # ----------------------------
 
+# CALENDAR ICS GENERATOR FUNCTIONS
+    
+def generate_ics_file_for_classes(selected_classes, classes, start_date_str, end_date_str, filename="class_schedule.ics"):
+    cal = Calendar()
+    
+    start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+    end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+
+    for class_name in selected_classes:
+        cls = next((item for item in classes if item["name"] == class_name), None)
+        if cls is None:
+            continue
+        
+        for session in cls['schedule']:
+            day, start_time_str, end_time_str = session['day'], session['start_time'], session['end_time']
+            if not all([day, start_time_str, end_time_str]):
+                # Skip if any essential component is missing
+                continue
+
+            first_occurrence_date = start_date
+            # Adjust first_occurrence_date to the first occurrence of the session day
+            while first_occurrence_date.strftime('%A') != day:
+                first_occurrence_date += timedelta(days=1)
+
+            if first_occurrence_date > end_date:
+                # If the first occurrence is beyond the semester end, skip this session
+                continue
+
+            start_datetime = datetime.combine(first_occurrence_date, datetime.strptime(start_time_str, '%H:%M').time())
+            end_datetime = datetime.combine(first_occurrence_date, datetime.strptime(end_time_str, '%H:%M').time())
+
+            event = Event()
+            event.add('summary', f"{cls['name']} - Group {cls['group']}")
+            event.add('location', session.get('class_room', 'N/A'))
+            event.add('dtstart', start_datetime)
+            event.add('dtend', end_datetime)
+            event.add('rrule', {'freq': 'weekly', 'until': end_date})
+            cal.add_component(event)
+
+    with open(filename, 'wb') as f:
+        f.write(cal.to_ical())
+    
+    return filename
+
+
+# ----------------------------
+
 # Main app function
 def main():
     st.title("Class Schedule Management")
@@ -143,7 +192,8 @@ def main():
     st.write("Welcome to the Class Schedule Management app. First, log all the classes you want to attend or consider for the timetable combinations. Then, proceed to the Timetable Creator to generate and download your timetables.")
 
     # Create tabs for different functionalities
-    tab1, tab2 = st.tabs(["Class Logger", "Timetable Creator"])
+    # tab1, tab2 = st.tabs(["Class Logger", "Timetable Creator"])
+    tab1, tab2, tab3 = st.tabs(["Class Logger", "Timetable Creator", "Add timetable to Calendar"])
 
     # Class Logger tab
     with tab1:
@@ -152,6 +202,9 @@ def main():
     # Timetable Creator tab
     with tab2:
         timetable_creator()
+
+    with tab3:
+        generate_ics_tab()
 
     
 
@@ -242,6 +295,7 @@ def timetable_creator():
                 and has_free_days(combo, free_days)
                 and all(any(cls['name'] == mandatory_class for cls in combo) for mandatory_class in mandatory_classes)
             ]
+            st.session_state['viable_combinations'] = viable_combinations
 
             if not viable_combinations:
                 st.warning("No timetables found with the current criteria. Consider adjusting the number of classes, mandatory classes, or selected free days.")
@@ -264,6 +318,40 @@ def timetable_creator():
                     )
         except Exception as e:
             st.error(f"An error occurred: {e}")
+
+def generate_ics_tab():
+    if not os.path.exists('classes.json'):
+        st.warning("No classes logged yet. Please log some classes first.")
+        return
+    
+    st.write('Select the classes you choose to take after seeing the timetables and generate an ICS file to add to your calendar.')
+    
+    with open('classes.json', 'r') as file:
+        classes = json.load(file)
+
+    class_options = [f"{cls['name']} - Group {cls['group']}" for cls in classes]
+    selected_classes = st.multiselect("Select classes to include in your ICS file:", class_options)
+
+    start_date = st.date_input("Semester Start Date")
+    end_date = st.date_input("Semester End Date")
+
+    generate_button = st.button("Generate ICS File")
+
+    if generate_button:
+        if start_date and end_date:
+            selected_class_names = [option.split(" - Group ")[0] for option in selected_classes]
+            filename = generate_ics_file_for_classes(selected_class_names, classes, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+            with open(filename, "rb") as file:
+                st.download_button(
+                    label="Download ICS File",
+                    data=file,
+                    file_name=filename,
+                    mime="text/calendar"
+                )
+        else:
+            st.error("Please make sure both Semester Start and End Dates are selected.")
+
+
 
 if __name__ == "__main__":
     main()
