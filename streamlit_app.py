@@ -9,6 +9,17 @@ from openpyxl.utils import get_column_letter
 import os
 from icalendar import Calendar, Event, vDatetime
 import pytz
+from pymongo import MongoClient
+
+# Retrieve MongoDB credentials from Streamlit secrets
+mongo_user = st.secrets["MONGODB"]["user"]
+mongo_password = st.secrets["MONGODB"]["password"]
+
+# MongoDB Atlas Connection
+mongo_uri = f"mongodb+srv://{mongo_user}:{mongo_password}@cluster0.rkdwvgd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+client = MongoClient(mongo_uri)
+db = client["class_schedule_db"]
+collection = db["class_entries"]
 
 # CLASS LOGGER FUNCTIONS
 
@@ -19,22 +30,16 @@ def display_class_entry(class_entry):
     for schedule in class_entry['schedule']:
         st.write(f"Day: {schedule['day']}, Start Time: {schedule['start_time']}, End Time: {schedule['end_time']}")
 
-# Function to save class data to a JSON file
-def save_class_to_file(class_data, filename="classes.json"):
-    try:
-        # Read existing data from the file
-        with open(filename, "r") as file:
-            data = json.load(file)
-    except FileNotFoundError:
-        # If file does not exist, start with an empty list
-        data = []
+def save_class_to_db(dni, class_data):
+    collection.update_one(
+        {"dni": dni},
+        {"$push": {"classes": class_data}},
+        upsert=True
+    )
 
-    # Append new class data
-    data.append(class_data)
-
-    # Write updated data back to the file
-    with open(filename, "w") as file:
-        json.dump(data, file, indent=4)
+def get_classes_from_db(dni):
+    user_data = collection.find_one({"dni": dni})
+    return user_data.get("classes", []) if user_data else []
 
 # ----------------------------
 
@@ -184,13 +189,21 @@ def generate_ics_file_for_classes(selected_classes, classes, start_date_str, end
 # Main app function
 def main():
     st.title("Class Schedule Management 🎓")
+
+    # Sidebar for DNI or University File Number
+    st.sidebar.header("User Information")
+    dni = st.sidebar.text_input("Enter your DNI or University File Number")
+
+    # Save DNI to session state
+    if dni:
+        st.session_state.dni = dni
+
+    # Main app content
     st.markdown("""
         <style>
-        /* Global styles */
         html, body, [class*="st-"] {
             font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
         }
-        /* Style buttons for interactivity */
         .stButton>button {
             border: none;
             border-radius: px;
@@ -205,7 +218,6 @@ def main():
         </style>
     """, unsafe_allow_html=True)
 
-    # Credit for the creator
     st.markdown("Created by [Nicolas Cantarovici](https://www.linkedin.com/in/nicolas-cantarovici-3b85a0198)")
     st.markdown("""
     <div >
@@ -217,7 +229,6 @@ def main():
     </div>
 """, unsafe_allow_html=True)
 
-
     # Create tabs for different functionalities
     tab1, tab2, tab3 = st.tabs(["📚 Class Logger", "⏱️ Timetable Creator", "🗓️ Add to Calendar"])
 
@@ -228,157 +239,156 @@ def main():
         timetable_creator()
 
     with tab3:
-        generate_ics_tab()
-
-    
-
+        calendar_ics_generator()
+        
 def class_logger():
-    # Initialize session state for number of days
-    if 'num_days' not in st.session_state:
-        st.session_state.num_days = 1
+    dni = st.session_state.get('dni')
+    if dni:
+        class_name = st.text_input("Class Name")
+        group_section = st.text_input("Group/Section")
 
-    # Input for class name and group/section
-    class_name = st.text_input("Class Name")
-    group_section = st.text_input("Group/Section")
+        # Input for number of days and dynamic schedule inputs
+        num_days = st.number_input("Number of days per week", min_value=1, max_value=10, step=1, key='num_days')
+        schedule_entries = []
+        for i in range(num_days):
+            cols = st.columns(4)
+            with cols[0]:
+                day = st.selectbox(f"Day {i+1}", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], key=f"day{i}")
+            with cols[1]:
+                start_time = st.time_input(f"Start Time {i+1}", key=f"start_time{i}")
+            with cols[2]:
+                end_time = st.time_input(f"End Time {i+1}", key=f"end_time{i}")
+            with cols[3]:
+                class_room = st.text_input(f"Class Room {i+1}", key=f"class_room{i}")
+            schedule_entries.append((day, start_time, end_time, class_room))
 
-    # Input for number of days and dynamic schedule inputs
-    num_days = st.number_input("Number of days per week", min_value=1, max_value=10, step=1, key='num_days')
-    schedule_entries = []
-    for i in range(num_days):
-        cols = st.columns(4)
-        with cols[0]:
-            day = st.selectbox(f"Day {i+1}", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], key=f"day{i}")
-        with cols[1]:
-            start_time = st.time_input(f"Start Time {i+1}", key=f"start_time{i}")
-        with cols[2]:
-            end_time = st.time_input(f"End Time {i+1}", key=f"end_time{i}")
-        with cols[3]:
-            class_room = st.text_input(f"Class Room {i+1}", key=f"class_room{i}")
-        schedule_entries.append((day, start_time, end_time, class_room))
+        # Submission button
+        submit_button = st.button("Log Class")
 
-    # Submission button
-    submit_button = st.button("Log Class")
-
-    # Handling the submission
-    if submit_button and class_name and group_section:
-        schedule = [
-            {
-                "day": day, 
-                "start_time": start_time.strftime("%H:%M"), 
-                "end_time": end_time.strftime("%H:%M"),
-                "class_room": class_room
-            } for day, start_time, end_time, class_room in schedule_entries
-        ]
-        
-        new_class = {
-            "name": class_name.capitalize(),
-            "group": group_section,
-            "schedule": schedule
-        }
-
-        # Save to file
-        save_class_to_file(new_class)
-
-        # Display the logged class
-        display_class_entry(new_class)
-        st.success("Class logged and saved successfully.")
-
-def timetable_creator():
-    if not os.path.exists('classes.json'):
-        st.warning("Please log a class first before generating a timetable.")
-        return
-    # Load and process classes
-    with open('classes.json', 'r') as file:
-        classes = json.load(file)
-
-    parsed_classes = [{
-        **cls, 
-        'schedule': [{
-            **session, 
-            'start_time': parse_time(session['start_time']), 
-            'end_time': parse_time(session['end_time'])
-        } for session in cls['schedule']]
-    } for cls in classes]
-
-    # Get unique class names
-    class_names = list(set(cls['name'] for cls in parsed_classes))
-
-    # Add multiselect for mandatory classes
-    mandatory_classes = st.multiselect("Select classes that must be included in every timetable", class_names)
-
-    num_classes = st.number_input("Number of classes to attend", min_value=len(mandatory_classes), max_value=len(class_names), step=1)  
-
-    # User input for selecting free days
-    days_of_week = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-    free_days = st.multiselect("Select days when you don't want to have classes", days_of_week)
-
-    generate_button = st.button("Generate Timetable")
-
-    if generate_button:
-        try:
-            class_combinations = combinations(parsed_classes, num_classes)
-            viable_combinations = [
-                combo for combo in class_combinations 
-                if not any(has_conflict(cls1, cls2) for cls1, cls2 in combinations(combo, 2))
-                and has_unique_classes(combo)
-                and has_free_days(combo, free_days)
-                and all(any(cls['name'] == mandatory_class for cls in combo) for mandatory_class in mandatory_classes)
+        # Handling the submission
+        if submit_button and class_name and group_section:
+            schedule = [
+                {
+                    "day": day, 
+                    "start_time": start_time.strftime("%H:%M"), 
+                    "end_time": end_time.strftime("%H:%M"),
+                    "class_room": class_room
+                } for day, start_time, end_time, class_room in schedule_entries
             ]
-            st.session_state['viable_combinations'] = viable_combinations
+            
+            new_class = {
+                "name": class_name.capitalize(),
+                "group": group_section,
+                "schedule": schedule
+            }
 
-            if not viable_combinations:
-                st.warning("No timetables found with the current criteria. Consider adjusting the number of classes, mandatory classes, or selected free days.")
-                return
+            save_class_to_db(dni, new_class)
 
-             # Extract unique time slots and pass them along with the combinations and classes
-            time_slots = get_unique_time_slots(parsed_classes)
-            filename = 'timetables.xlsx'
-            create_single_sheet_xlsx_timetables(viable_combinations, filename, time_slots, classes)
+            display_class_entry(new_class)
+            st.success("Class logged and saved successfully.")
+    else:
+        st.warning("Please enter your DNI or University File Number in the sidebar to log a class.")
+
+# Timetable Creator tab
+def timetable_creator():
+    dni = st.session_state.get('dni')
+    if dni:
+        classes = get_classes_from_db(dni)
+        if not classes:
+            st.warning("No classes found for the entered DNI. Please log some classes first.")
+            return
+
+        parsed_classes = [{
+            **cls,
+            'schedule': [{
+                **session,
+                'start_time': parse_time(session['start_time']),
+                'end_time': parse_time(session['end_time'])
+            } for session in cls['schedule']]
+        } for cls in classes]
+
+        # Get unique class names
+        class_names = list(set(cls['name'] for cls in parsed_classes))
+
+        # Add multiselect for mandatory classes
+        mandatory_classes = st.multiselect("Select classes that must be included in every timetable", class_names)
+
+        num_classes = st.number_input("Number of classes to attend", min_value=len(mandatory_classes), max_value=len(class_names), step=1)
+
+        # User input for selecting free days
+        days_of_week = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+        free_days = st.multiselect("Select days when you don't want to have classes", days_of_week)
+
+        generate_button = st.button("Generate Timetable")
+
+        if generate_button:
+            try:
+                class_combinations = combinations(parsed_classes, num_classes)
+                viable_combinations = [
+                    combo for combo in class_combinations
+                    if not any(has_conflict(cls1, cls2) for cls1, cls2 in combinations(combo, 2))
+                    and has_unique_classes(combo)
+                    and has_free_days(combo, free_days)
+                    and all(any(cls['name'] == mandatory_class for cls in combo) for mandatory_class in mandatory_classes)
+                ]
+                st.session_state['viable_combinations'] = viable_combinations
+
+                if not viable_combinations:
+                    st.warning("No timetables found with the current criteria. Consider adjusting the number of classes, mandatory classes, or selected free days.")
+                    return
+
+                # Extract unique time slots and pass them along with the combinations and classes
+                time_slots = get_unique_time_slots(parsed_classes)
+                filename = 'timetables.xlsx'
+                create_single_sheet_xlsx_timetables(viable_combinations, filename, time_slots, classes)
 
 
-            # Provide download link
-            st.success("Timetable generated successfully.")
-            with open(filename, "rb") as file:
-                btn = st.download_button(
-                        label="Download Timetable",
-                        data=file,
-                        file_name=filename,
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
-        except Exception as e:
-            st.error(f"An error occurred: {e}")
+                # Provide download link
+                st.success("Timetable generated successfully.")
+                with open(filename, "rb") as file:
+                    btn = st.download_button(
+                            label="Download Timetable",
+                            data=file,
+                            file_name=filename,
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
+    else:
+        st.warning("Please enter your DNI or University File Number in the sidebar to generate a timetable.")
 
-def generate_ics_tab():
-    if not os.path.exists('classes.json'):
-        st.warning("No classes logged yet. Please log some classes first.")
-        return
-        
-    with open('classes.json', 'r') as file:
-        classes = json.load(file)
+# Calendar ICS Generator tab
+def calendar_ics_generator():
+    dni = st.session_state.get('dni')
+    if dni:
+        classes = get_classes_from_db(dni)
+        if not classes:
+            st.warning("No classes found for the entered DNI. Please log some classes first.")
+            return
 
-    class_options = [f"{cls['name']} - Group {cls['group']}" for cls in classes]
-    selected_classes = st.multiselect("Select classes you will be attending to add to your calendar", class_options)
+        class_names = list(set(cls['name'] for cls in classes))
+        selected_classes = st.multiselect("Select classes to include in the calendar", class_names)
 
-    start_date = st.date_input("Semester Start Date")
-    end_date = st.date_input("Semester End Date")
+        if selected_classes:
+            start_date = st.date_input("Select the start date")
+            end_date = st.date_input("Select the end date")
 
-    generate_button = st.button("Generate ICS File")
-
-    if generate_button:
-        if start_date and end_date:
-            selected_class_names = [option.split(" - Group ")[0] for option in selected_classes]
-            filename = generate_ics_file_for_classes(selected_class_names, classes, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
-            with open(filename, "rb") as file:
-                st.download_button(
-                    label="Download ICS File",
-                    data=file,
-                    file_name=filename,
-                    mime="text/calendar"
-                )
+            if st.button("Generate ICS File"):
+                try:
+                    ics_filename = generate_ics_file_for_classes(selected_classes, classes, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+                    with open(ics_filename, "rb") as file:
+                        st.download_button(
+                            label="Download ICS File",
+                            data=file,
+                            file_name=ics_filename,
+                            mime="text/calendar"
+                        )
+                except Exception as e:
+                    st.error(f"An error occurred: {e}")
         else:
-            st.error("Please make sure both Semester Start and End Dates are selected.")
-
-
+            st.warning("Please select at least one class to include in the calendar.")
+    else:
+        st.warning("Please enter your DNI or University File Number in the sidebar to generate a calendar.")
 
 if __name__ == "__main__":
     main()

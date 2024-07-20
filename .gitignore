@@ -1,7 +1,0 @@
-venv
-all_timetables.csv
-classes.json
-comb.py
-logger.py
-streamlit_app_old.py
-timetables.xlsx
