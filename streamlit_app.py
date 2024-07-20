@@ -30,15 +30,15 @@ def display_class_entry(class_entry):
     for schedule in class_entry['schedule']:
         st.write(f"Day: {schedule['day']}, Start Time: {schedule['start_time']}, End Time: {schedule['end_time']}")
 
-def save_class_to_db(dni, class_data):
+def save_class_to_db(id, class_data):
     collection.update_one(
-        {"dni": dni},
+        {"id": id},
         {"$push": {"classes": class_data}},
         upsert=True
     )
 
-def get_classes_from_db(dni):
-    user_data = collection.find_one({"dni": dni})
+def get_classes_from_db(id):
+    user_data = collection.find_one({"id": id})
     return user_data.get("classes", []) if user_data else []
 
 # ----------------------------
@@ -186,17 +186,22 @@ def generate_ics_file_for_classes(selected_classes, classes, start_date_str, end
 
 # ----------------------------
 
+st.set_page_config(
+        page_title="Class Scheduler",
+        page_icon="calendar",
+    )
+
 # Main app function
 def main():
-    st.title("Class Schedule Management 🎓")
+    st.title("Class Scheduler 🎓")
 
-    # Sidebar for DNI or University File Number
-    st.sidebar.header("User Information")
-    dni = st.sidebar.text_input("Enter your DNI or University File Number")
+    # Sidebar for id or University File Number
+    st.sidebar.header("User information")
+    id = st.sidebar.text_input("Enter your student ID number")
 
-    # Save DNI to session state
-    if dni:
-        st.session_state.dni = dni
+    # Save id to session state
+    if id:
+        st.session_state.id = id
 
     # Main app content
     st.markdown("""
@@ -222,15 +227,15 @@ def main():
     st.markdown("""
     <div >
         <ol>
-            <li><strong>Log Your Classes:</strong> Start by entering all classes you're interested in. Whether you're attending or just considering, log them to see all possible timetables.</li>
-            <li><strong>Create Timetables:</strong> Navigate to the 'Timetable Creator' tab to generate custom timetables based on your classes. Experiment with different combinations to suit your schedule best.</li>
-            <li><strong>Download & Share:</strong> Once satisfied, download your timetable and share it with friends or keep it for your reference.</li>
+            <li><strong>Log your classes:</strong> Start by entering all classes you're interested in. Whether you're attending or just considering, log them to see all possible timetables.</li>
+            <li><strong>Create timetables:</strong> Navigate to the 'Timetable Creator' tab to generate custom timetables based on your classes. Experiment with different combinations to suit your schedule best.</li>
+            <li><strong>Download ICS file:</strong> After finalizing your class choices, navigate to the 'Add to Calendar' section. There, you can download an ICS file of your timetable, which can be easily added to your calendar.</li>
         </ol>
     </div>
 """, unsafe_allow_html=True)
 
     # Create tabs for different functionalities
-    tab1, tab2, tab3 = st.tabs(["📚 Class Logger", "⏱️ Timetable Creator", "🗓️ Add to Calendar"])
+    tab1, tab2, tab3 = st.tabs(["📚 Class logger", "⏱️ Timetable creator", "🗓️ Add to calendar"])
 
     with tab1:
         class_logger()
@@ -242,9 +247,9 @@ def main():
         calendar_ics_generator()
         
 def class_logger():
-    dni = st.session_state.get('dni')
-    if dni:
-        class_name = st.text_input("Class Name")
+    id = st.session_state.get('id')
+    if id:
+        class_name = st.text_input("Class name")
         group_section = st.text_input("Group/Section")
 
         # Input for number of days and dynamic schedule inputs
@@ -255,11 +260,11 @@ def class_logger():
             with cols[0]:
                 day = st.selectbox(f"Day {i+1}", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], key=f"day{i}")
             with cols[1]:
-                start_time = st.time_input(f"Start Time {i+1}", key=f"start_time{i}")
+                start_time = st.time_input(f"Start time {i+1}", key=f"start_time{i}")
             with cols[2]:
-                end_time = st.time_input(f"End Time {i+1}", key=f"end_time{i}")
+                end_time = st.time_input(f"End time {i+1}", key=f"end_time{i}")
             with cols[3]:
-                class_room = st.text_input(f"Class Room {i+1}", key=f"class_room{i}")
+                class_room = st.text_input(f"Class room {i+1}", key=f"class_room{i}")
             schedule_entries.append((day, start_time, end_time, class_room))
 
         # Submission button
@@ -282,20 +287,20 @@ def class_logger():
                 "schedule": schedule
             }
 
-            save_class_to_db(dni, new_class)
+            save_class_to_db(id, new_class)
 
             display_class_entry(new_class)
             st.success("Class logged and saved successfully.")
     else:
-        st.warning("Please enter your DNI or University File Number in the sidebar to log a class.")
+        st.warning("Please enter your student ID number in the sidebar to log a class.")
 
 # Timetable Creator tab
 def timetable_creator():
-    dni = st.session_state.get('dni')
-    if dni:
-        classes = get_classes_from_db(dni)
+    id = st.session_state.get('id')
+    if id:
+        classes = get_classes_from_db(id)
         if not classes:
-            st.warning("No classes found for the entered DNI. Please log some classes first.")
+            st.warning("No classes found for the entered id. Please log some classes first.")
             return
 
         parsed_classes = [{
@@ -355,15 +360,15 @@ def timetable_creator():
             except Exception as e:
                 st.error(f"An error occurred: {e}")
     else:
-        st.warning("Please enter your DNI or University File Number in the sidebar to generate a timetable.")
+        st.warning("Please enter your student ID number in the sidebar to generate a timetable.")
 
 # Calendar ICS Generator tab
 def calendar_ics_generator():
-    dni = st.session_state.get('dni')
-    if dni:
-        classes = get_classes_from_db(dni)
+    id = st.session_state.get('id')
+    if id:
+        classes = get_classes_from_db(id)
         if not classes:
-            st.warning("No classes found for the entered DNI. Please log some classes first.")
+            st.warning("No classes found for the entered id. Please log some classes first.")
             return
 
         class_names = list(set(cls['name'] for cls in classes))
@@ -388,7 +393,7 @@ def calendar_ics_generator():
         else:
             st.warning("Please select at least one class to include in the calendar.")
     else:
-        st.warning("Please enter your DNI or University File Number in the sidebar to generate a calendar.")
+        st.warning("Please enter your student ID number in the sidebar to generate a calendar.")
 
 if __name__ == "__main__":
     main()
