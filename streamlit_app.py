@@ -10,6 +10,7 @@ import os
 from icalendar import Calendar, Event, vDatetime
 import pytz
 from pymongo import MongoClient
+import re
 
 # Retrieve MongoDB credentials from Streamlit secrets
 mongo_user = st.secrets["MONGODB"]["user"]
@@ -272,10 +273,67 @@ def main():
 
     with tab3:
         calendar_ics_generator()
+
+# Function to parse bulk schedule data
+def parse_schedule_data(raw_data):
+    # Split the raw data by lines
+    lines = raw_data.strip().split('\n')
+    
+    # Initialize variables
+    classes = {}
+    current_class_name = None
+    current_group = None
+
+    for i in range(0, len(lines), 6):
+        if len(lines[i:i+6]) < 6:
+            continue
         
+        class_name_match = re.match(r'^(.*)\s\(\d{4}\)', lines[i])
+        if not class_name_match:
+            continue
+        class_name = class_name_match.group(1)
+        group = lines[i+1].strip()
+        day = lines[i+4].strip()
+        time_range = lines[i+5].strip()
+        
+        if ' a ' not in time_range:
+            continue
+        
+        start_time, end_time = time_range.split(' a ')
+        
+        try:
+            start_time = datetime.strptime(start_time.strip(), "%H:%M").time()
+            end_time = datetime.strptime(end_time.strip(), "%H:%M").time()
+        except ValueError:
+            continue
+        
+        if (class_name, group) not in classes:
+            classes[(class_name, group)] = {
+                "name": class_name,
+                "group": group,
+                "schedule": []
+            }
+
+        classes[(class_name, group)]['schedule'].append({
+            "day": day,
+            "start_time": start_time.strftime("%H:%M"),
+            "end_time": end_time.strftime("%H:%M"),
+            "class_room": "Sin asignar"  # Assuming classroom is "Sin asignar" based on provided data format
+        })
+    
+    print( list(classes.values()))
+    return list(classes.values())
+        
+# Streamlit app function
 def class_logger():
     id = st.session_state.get('id')
-    if id:
+    if not id:
+        st.warning("Por favor, ingresá tu número de legajo en la barra lateral para registrar una clase.")
+        return
+    
+    tab1, tab2 = st.tabs(["Añadir clase una por una", "Añadir clases en cantidad"])
+
+    with tab1:
         class_name = st.text_input("Nombre de la clase")
         group_section = st.text_input("Grupo/Sección")
 
@@ -318,8 +376,18 @@ def class_logger():
 
             display_class_entry(new_class)
             st.success("Clase registrada y guardada con éxito.")
-    else:
-        st.warning("Por favor, ingresá tu número de legajo en la barra lateral para registrar una clase.")
+
+    with tab2:
+        st.write('Esta función es para los estudiantes de Ditella que pueden copiar y pegar las materias de [esta página](https://lookerstudio.google.com/u/1/reporting/56ee8002-2c18-425f-b3c9-5f107da7d0f8/page/hAzCD).')
+        raw_data = st.text_area("Pega los datos de las clases aquí. (solo copiar y pegar el contenido de las materias)", height=300)
+        submit_button_bulk = st.button("Registrar clases en bloque")
+
+        if submit_button_bulk and raw_data:
+            classes = parse_schedule_data(raw_data)
+            for new_class in classes:
+                save_class_to_db(id, new_class)
+                # display_class_entry(new_class)
+            st.success("Clases registradas y guardadas con éxito.")
 
 # Timetable Creator tab
 def timetable_creator():
