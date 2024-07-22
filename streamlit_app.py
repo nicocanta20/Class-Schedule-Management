@@ -248,15 +248,18 @@ def main():
     """, unsafe_allow_html=True)
 
     st.markdown("Creado por [Nicolas Cantarovici](https://www.linkedin.com/in/nicolas-cantarovici-3b85a0198)")
-    st.markdown("""
-    <div >
-        <ol>
-            <li><strong>Registrá tus clases:</strong> Empezá ingresando todas las clases que te interesen. Ya sea las que asistas o que estés considerando, para ver todos los horarios posibles.</li>
-            <li><strong>Cree horarios:</strong> Navegá a la pestaña 'Creador de horarios' para generar horarios personalizados basados en tus clases de interés. Experimentá con diferentes combinaciones para ajustar mejor los horario.</li>
-            <li><strong>Descargue el archivo ICS:</strong> Después de finalizar sus elecciones de clases, ingresá a la sección 'Agregar al calendario'. Ahí, vas a poder descargar un archivo ICS, que se puede agregar fácilmente a tu calendario.</li>
-        </ol>
-    </div>
-""", unsafe_allow_html=True)
+    with st.expander("Como usar la app?"):
+        st.markdown("""
+            <div >
+                <ol>
+                    <li><strong>Registrá tus clases:</strong> Empezá ingresando todas las clases que te interesen. Ya sea las que asistas o que estés considerando, para ver todos los horarios posibles.</li>
+                    <li><strong>Creá horarios posibles:</strong> Navegá a la pestaña 'Creador de horarios' para generar horarios personalizados basados en tus clases de interés. Experimentá con diferentes combinaciones para ajustar mejor los horarios.</li>
+                    <li><strong>Descargá el archivo ICS:</strong> Después de finalizar de elegir las clases a cursar, ingresá a la sección 'Agregar al calendario'. Ahí, vas a poder descargar un archivo ICS, que se puede agregar fácilmente a tu calendario.</li>
+                </ol>
+            </div>
+        """, unsafe_allow_html=True)
+
+
 
     # Create tabs for different functionalities
     tab1, tab2, tab3 = st.tabs(["📚 Registro de clases", "⏱️ Creador de horarios", "🗓️ Agregar al calendario"])
@@ -340,13 +343,13 @@ def timetable_creator():
         class_names = list(set(cls['name'] for cls in parsed_classes))
 
         # Add multiselect for mandatory classes
-        mandatory_classes = st.multiselect("Seleccioná las clases que quisieras probar en los posibles calendarios", class_names)
+        mandatory_classes = st.multiselect("Seleccioná las clases que quisieras probar en los posibles calendarios", class_names,placeholder='Elegir clases')
 
         num_classes = st.number_input("Número de clases a asistir", min_value=len(mandatory_classes), max_value=len(class_names), step=1)
 
         # User input for selecting free days
         days_of_week = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']
-        free_days = st.multiselect("Seleccioná los días en los que no querés tener clases", days_of_week)
+        free_days = st.multiselect("Seleccioná los días en los que no querés tener clases", days_of_week,placeholder='Elegir días')
 
         generate_button = st.button("Generar opciones")
 
@@ -398,7 +401,7 @@ def calendar_ics_generator():
         # Combine class names with their sections for display
         class_display_names = [f"{cls['name']} - Sección {cls['group']}" for cls in classes]
 
-        selected_classes_display = st.multiselect("Seleccioná las clases para incluir en el calendario definitivo", class_display_names)
+        selected_classes_display = st.multiselect("Seleccioná las clases para incluir en el calendario definitivo", class_display_names,placeholder='Elegir clases')
 
         # Extract class names and groups from the selected display names
         selected_classes = [
