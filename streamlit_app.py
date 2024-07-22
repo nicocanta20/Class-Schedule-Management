@@ -25,10 +25,10 @@ collection = db["class_entries"]
 
 # Function to display a single class entry
 def display_class_entry(class_entry):
-    st.write(f"Class Name: {class_entry['name'].capitalize()}")
-    st.write(f"Group/Section: {class_entry['group']}")
+    st.write(f"Nombre de la clase: {class_entry['name'].capitalize()}")
+    st.write(f"Grupo/Sección: {class_entry['group']}")
     for schedule in class_entry['schedule']:
-        st.write(f"Day: {schedule['day']}, Start Time: {schedule['start_time']}, End Time: {schedule['end_time']}")
+        st.write(f"Día: {schedule['day']}, Hora de inicio: {schedule['start_time']}, Hora de finalización: {schedule['end_time']}")
 
 def save_class_to_db(id, class_data):
     collection.update_one(
@@ -83,19 +83,19 @@ def get_random_light_color():
 def create_single_sheet_xlsx_timetables(combinations, filename, time_slots, classes):
     wb = Workbook()
     ws = wb.active
-    ws.title = "Timetables"
+    ws.title = "Horarios"
 
     header_color = PatternFill(start_color="FFD700", end_color="FFD700", fill_type="solid")
     class_colors = {cls['name']: PatternFill(start_color=get_random_light_color(), end_color=get_random_light_color(), fill_type="solid") for cls in classes}
 
     current_row = 1
-    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+    days = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
 
     for i, combo in enumerate(combinations):
         current_row += 1  # Move to the next row for the header
 
         # Set the header row and column
-        for col, day in enumerate(['Time'] + days, start=1):
+        for col, day in enumerate(['Hora'] + days, start=1):
             cell = ws.cell(row=current_row, column=col, value=day)
             if col != 1:  # Apply header color to days, not to the 'Time' column
                 cell.fill = header_color
@@ -120,7 +120,7 @@ def create_single_sheet_xlsx_timetables(combinations, filename, time_slots, clas
                         day_col = days.index(session['day']) + 2
                         cell = ws.cell(row=current_row, column=day_col)
                         class_room_info = session.get('class_room', 'N/A')  # Retrieve class room or default to 'N/A'
-                        cell.value = f"{cls['name']}\n(Group {cls['group']}\nRoom: {class_room_info})"
+                        cell.value = f"{cls['name']}\n(Grupo {cls['group']}\nAula: {class_room_info})"
                         cell.fill = class_colors[cls['name']]
                         cell.alignment = Alignment(wrap_text=True)
 
@@ -141,27 +141,48 @@ def create_single_sheet_xlsx_timetables(combinations, filename, time_slots, clas
 
 # CALENDAR ICS GENERATOR FUNCTIONS
     
-def generate_ics_file_for_classes(selected_classes, classes, start_date_str, end_date_str, filename="class_schedule.ics"):
+def generate_ics_file_for_classes(selected_classes, classes, start_date_str, end_date_str, filename="horario_clases.ics"):
     cal = Calendar()
     
     start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
     end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
 
-    for class_name in selected_classes:
-        cls = next((item for item in classes if item["name"] == class_name), None)
+    # Mapping Spanish day names to English day names
+    day_mapping = {
+        "Lunes": "Monday",
+        "Martes": "Tuesday",
+        "Miércoles": "Wednesday",
+        "Jueves": "Thursday",
+        "Viernes": "Friday",
+        "Sábado": "Saturday",
+        "Domingo": "Sunday"
+    }
+
+    for selected_class in selected_classes:
+
+        cls = next(
+            (item for item in classes if item["name"] == selected_class['name'] and item["group"] == selected_class['group']),
+            None
+        )
+
         if cls is None:
             continue
         
         for session in cls['schedule']:
             day, start_time_str, end_time_str = session['day'], session['start_time'], session['end_time']
             if not all([day, start_time_str, end_time_str]):
-                # Skip if any essential component is missing
                 continue
+
+            # Translate day name to English
+            day_english = day_mapping.get(day, day)
 
             first_occurrence_date = start_date
             # Adjust first_occurrence_date to the first occurrence of the session day
-            while first_occurrence_date.strftime('%A') != day:
+            while first_occurrence_date.strftime('%A') != day_english:
                 first_occurrence_date += timedelta(days=1)
+                if first_occurrence_date > end_date:
+                    # If first_occurrence_date exceeds end_date, break the loop
+                    break
 
             if first_occurrence_date > end_date:
                 # If the first occurrence is beyond the semester end, skip this session
@@ -169,9 +190,12 @@ def generate_ics_file_for_classes(selected_classes, classes, start_date_str, end
 
             start_datetime = datetime.combine(first_occurrence_date, datetime.strptime(start_time_str, '%H:%M').time())
             end_datetime = datetime.combine(first_occurrence_date, datetime.strptime(end_time_str, '%H:%M').time())
+            if end_datetime <= start_datetime:
+                # Skipping event due to invalid time range
+                continue
 
             event = Event()
-            event.add('summary', f"{cls['name']} - Group {cls['group']}")
+            event.add('summary', f"{cls['name']} - Grupo {cls['group']}")
             event.add('location', session.get('class_room', 'N/A'))
             event.add('dtstart', start_datetime)
             event.add('dtend', end_datetime)
@@ -187,17 +211,17 @@ def generate_ics_file_for_classes(selected_classes, classes, start_date_str, end
 # ----------------------------
 
 st.set_page_config(
-        page_title="Class Scheduler",
+        page_title="Planificador de Clases",
         page_icon="calendar",
     )
 
 # Main app function
 def main():
-    st.title("Class Scheduler 🎓")
+    st.title("Planificador de Clases 🎓")
 
     # Sidebar for id or University File Number
-    st.sidebar.header("User information")
-    id = st.sidebar.text_input("Enter your student ID number")
+    st.sidebar.header("Información del usuario")
+    id = st.sidebar.text_input("Ingresá tu número de legajo")
 
     # Save id to session state
     if id:
@@ -223,19 +247,19 @@ def main():
         </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("Created by [Nicolas Cantarovici](https://www.linkedin.com/in/nicolas-cantarovici-3b85a0198)")
+    st.markdown("Creado por [Nicolas Cantarovici](https://www.linkedin.com/in/nicolas-cantarovici-3b85a0198)")
     st.markdown("""
     <div >
         <ol>
-            <li><strong>Log your classes:</strong> Start by entering all classes you're interested in. Whether you're attending or just considering, log them to see all possible timetables.</li>
-            <li><strong>Create timetables:</strong> Navigate to the 'Timetable Creator' tab to generate custom timetables based on your classes. Experiment with different combinations to suit your schedule best.</li>
-            <li><strong>Download ICS file:</strong> After finalizing your class choices, navigate to the 'Add to Calendar' section. There, you can download an ICS file of your timetable, which can be easily added to your calendar.</li>
+            <li><strong>Registrá tus clases:</strong> Empezá ingresando todas las clases que te interesen. Ya sea las que asistas o que estés considerando, para ver todos los horarios posibles.</li>
+            <li><strong>Cree horarios:</strong> Navegá a la pestaña 'Creador de horarios' para generar horarios personalizados basados en tus clases de interés. Experimentá con diferentes combinaciones para ajustar mejor los horario.</li>
+            <li><strong>Descargue el archivo ICS:</strong> Después de finalizar sus elecciones de clases, ingresá a la sección 'Agregar al calendario'. Ahí, vas a poder descargar un archivo ICS, que se puede agregar fácilmente a tu calendario.</li>
         </ol>
     </div>
 """, unsafe_allow_html=True)
 
     # Create tabs for different functionalities
-    tab1, tab2, tab3 = st.tabs(["📚 Class logger", "⏱️ Timetable creator", "🗓️ Add to calendar"])
+    tab1, tab2, tab3 = st.tabs(["📚 Registro de clases", "⏱️ Creador de horarios", "🗓️ Agregar al calendario"])
 
     with tab1:
         class_logger()
@@ -249,26 +273,26 @@ def main():
 def class_logger():
     id = st.session_state.get('id')
     if id:
-        class_name = st.text_input("Class name")
-        group_section = st.text_input("Group/Section")
+        class_name = st.text_input("Nombre de la clase")
+        group_section = st.text_input("Grupo/Sección")
 
         # Input for number of days and dynamic schedule inputs
-        num_days = st.number_input("Number of days per week", min_value=1, max_value=10, step=1, key='num_days')
+        num_days = st.number_input("Número de días por semana", min_value=1, max_value=10, step=1, key='num_days')
         schedule_entries = []
         for i in range(num_days):
             cols = st.columns(4)
             with cols[0]:
-                day = st.selectbox(f"Day {i+1}", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], key=f"day{i}")
+                day = st.selectbox(f"Día {i+1}", ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"], key=f"day{i}")
             with cols[1]:
-                start_time = st.time_input(f"Start time {i+1}", key=f"start_time{i}")
+                start_time = st.time_input(f"Hora de inicio {i+1}", key=f"start_time{i}")
             with cols[2]:
-                end_time = st.time_input(f"End time {i+1}", key=f"end_time{i}")
+                end_time = st.time_input(f"Hora de fin {i+1}", key=f"end_time{i}")
             with cols[3]:
-                class_room = st.text_input(f"Class room {i+1}", key=f"class_room{i}")
+                class_room = st.text_input(f"Aula {i+1}", key=f"class_room{i}")
             schedule_entries.append((day, start_time, end_time, class_room))
 
         # Submission button
-        submit_button = st.button("Log Class")
+        submit_button = st.button("Registrar clase")
 
         # Handling the submission
         if submit_button and class_name and group_section:
@@ -290,9 +314,9 @@ def class_logger():
             save_class_to_db(id, new_class)
 
             display_class_entry(new_class)
-            st.success("Class logged and saved successfully.")
+            st.success("Clase registrada y guardada con éxito.")
     else:
-        st.warning("Please enter your student ID number in the sidebar to log a class.")
+        st.warning("Por favor, ingresá tu número de legajo en la barra lateral para registrar una clase.")
 
 # Timetable Creator tab
 def timetable_creator():
@@ -300,7 +324,7 @@ def timetable_creator():
     if id:
         classes = get_classes_from_db(id)
         if not classes:
-            st.warning("No classes found for the entered id. Please log some classes first.")
+            st.warning("No se encontraron clases para el ID ingresado. Por favor, registre algunas clases primero.")
             return
 
         parsed_classes = [{
@@ -316,15 +340,15 @@ def timetable_creator():
         class_names = list(set(cls['name'] for cls in parsed_classes))
 
         # Add multiselect for mandatory classes
-        mandatory_classes = st.multiselect("Select classes that must be included in every timetable", class_names)
+        mandatory_classes = st.multiselect("Seleccioná las clases que quisieras probar en los posibles calendarios", class_names)
 
-        num_classes = st.number_input("Number of classes to attend", min_value=len(mandatory_classes), max_value=len(class_names), step=1)
+        num_classes = st.number_input("Número de clases a asistir", min_value=len(mandatory_classes), max_value=len(class_names), step=1)
 
         # User input for selecting free days
-        days_of_week = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-        free_days = st.multiselect("Select days when you don't want to have classes", days_of_week)
+        days_of_week = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']
+        free_days = st.multiselect("Seleccioná los días en los que no querés tener clases", days_of_week)
 
-        generate_button = st.button("Generate Timetable")
+        generate_button = st.button("Generar opciones")
 
         if generate_button:
             try:
@@ -339,28 +363,28 @@ def timetable_creator():
                 st.session_state['viable_combinations'] = viable_combinations
 
                 if not viable_combinations:
-                    st.warning("No timetables found with the current criteria. Consider adjusting the number of classes, mandatory classes, or selected free days.")
+                    st.warning("No se encontraron horarios con los criterios actuales. Considerá ajustar el número de clases, las clases obligatorias o los días libres seleccionados.")
                     return
 
                 # Extract unique time slots and pass them along with the combinations and classes
                 time_slots = get_unique_time_slots(parsed_classes)
-                filename = 'timetables.xlsx'
+                filename = 'horarios.xlsx'
                 create_single_sheet_xlsx_timetables(viable_combinations, filename, time_slots, classes)
 
 
                 # Provide download link
-                st.success("Timetable generated successfully.")
+                st.success("Horario generado con éxito.")
                 with open(filename, "rb") as file:
                     btn = st.download_button(
-                            label="Download Timetable",
+                            label="Descargar horario",
                             data=file,
                             file_name=filename,
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         )
             except Exception as e:
-                st.error(f"An error occurred: {e}")
+                st.error(f"Ocurrió un error: {e}")
     else:
-        st.warning("Please enter your student ID number in the sidebar to generate a timetable.")
+        st.warning("Por favor, ingresá tu número de legajo en la barra lateral para generar un horario.")
 
 # Calendar ICS Generator tab
 def calendar_ics_generator():
@@ -368,32 +392,43 @@ def calendar_ics_generator():
     if id:
         classes = get_classes_from_db(id)
         if not classes:
-            st.warning("No classes found for the entered id. Please log some classes first.")
+            st.warning("No se encontraron clases para el ID ingresado. Por favor, registrá algunas clases primero.")
             return
 
-        class_names = list(set(cls['name'] for cls in classes))
-        selected_classes = st.multiselect("Select classes to include in the calendar", class_names)
+        # Combine class names with their sections for display
+        class_display_names = [f"{cls['name']} - Sección {cls['group']}" for cls in classes]
+
+        selected_classes_display = st.multiselect("Seleccioná las clases para incluir en el calendario definitivo", class_display_names)
+
+        # Extract class names and groups from the selected display names
+        selected_classes = [
+            {'name': display.split(' - ')[0], 'group': display.split(' - ')[1].replace('Sección ', '')}
+            for display in selected_classes_display
+        ]
 
         if selected_classes:
-            start_date = st.date_input("Select the start date")
-            end_date = st.date_input("Select the end date")
+            start_date = st.date_input("Fecha de inicio")
+            end_date = st.date_input("Fecha de fin de cursada")
 
-            if st.button("Generate ICS File"):
+            if st.button("Generar calendario"):
                 try:
-                    ics_filename = generate_ics_file_for_classes(selected_classes, classes, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+                    ics_filename = generate_ics_file_for_classes(
+                        selected_classes, classes, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')
+                    )
+
                     with open(ics_filename, "rb") as file:
                         st.download_button(
-                            label="Download ICS File",
+                            label="Descargar archivo ICS",
                             data=file,
                             file_name=ics_filename,
                             mime="text/calendar"
                         )
                 except Exception as e:
-                    st.error(f"An error occurred: {e}")
+                    st.error(f"Ocurrió un error: {e}")
         else:
-            st.warning("Please select at least one class to include in the calendar.")
+            st.warning("Por favor, seleccioná al menos una clase para incluir en el calendario.")
     else:
-        st.warning("Please enter your student ID number in the sidebar to generate a calendar.")
+        st.warning("Por favor, ingresá tu número de legajo en la barra lateral para generar un calendario.")
 
 if __name__ == "__main__":
     main()
