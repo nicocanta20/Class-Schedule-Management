@@ -274,6 +274,12 @@ def main():
     with tab3:
         calendar_ics_generator()
 
+def remove_class_from_db(id, class_name, group):
+    collection.update_one(
+        {"id": id},
+        {"$pull": {"classes": {"name": class_name, "group": group}}}
+    )
+
 # Function to parse bulk schedule data
 def parse_schedule_data(raw_data):
     # Split the raw data by lines
@@ -331,7 +337,7 @@ def class_logger():
         st.warning("Por favor, ingresá tu número de legajo en la barra lateral para registrar una clase.")
         return
     
-    tab1, tab2 = st.tabs(["Añadir clase una por una", "Añadir clases en cantidad"])
+    tab1, tab2, tab3 = st.tabs(["Añadir clase una por una", "Añadir clases en cantidad", "Eliminar clases"])
 
     with tab1:
         class_name = st.text_input("Nombre de la clase")
@@ -345,9 +351,9 @@ def class_logger():
             with cols[0]:
                 day = st.selectbox(f"Día {i+1}", ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"], key=f"day{i}")
             with cols[1]:
-                start_time = st.time_input(f"Hora de inicio {i+1}", key=f"start_time{i}")
+                start_time = st.time_input(f"Hora de inicio {i+1}", key=f"start_time{i}", value=None)
             with cols[2]:
-                end_time = st.time_input(f"Hora de fin {i+1}", key=f"end_time{i}")
+                end_time = st.time_input(f"Hora de fin {i+1}", key=f"end_time{i}", value=None)
             with cols[3]:
                 class_room = st.text_input(f"Aula {i+1}", key=f"class_room{i}")
             schedule_entries.append((day, start_time, end_time, class_room))
@@ -388,6 +394,20 @@ def class_logger():
                 save_class_to_db(id, new_class)
                 # display_class_entry(new_class)
             st.success("Clases registradas y guardadas con éxito.")
+
+    with tab3:
+        classes = get_classes_from_db(id)
+        if classes:
+            class_names = [f"{cls['name']} - {cls['group']}" for cls in classes]
+            selected_class = st.selectbox("Selecciona la clase que deseas eliminar", class_names)
+            if st.button("Eliminar clase"):
+                class_name, group = selected_class.split(' - ')
+                remove_class_from_db(id, class_name, group)
+                st.success("Clase eliminada con éxito")
+        else:
+            st.warning("No tienes clases registradas para eliminar")
+
+        
 
 # Timetable Creator tab
 def timetable_creator():
