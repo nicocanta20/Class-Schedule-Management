@@ -399,14 +399,15 @@ def class_logger():
         classes = get_classes_from_db(id)
         if classes:
             class_names = [f"{cls['name']} - {cls['group']}" for cls in classes]
-            selected_class = st.selectbox("Selecciona la clase que deseas eliminar", class_names)
-            if st.button("Eliminar clase"):
-                class_name, group = selected_class.split(' - ')
-                remove_class_from_db(id, class_name, group)
-                st.success("Clase eliminada con éxito")
+            selected_classes = st.multiselect("Selecciona las clases que deseas eliminar", class_names)
+            if st.button("Eliminar clases"):
+                for selected_class in selected_classes:
+                    class_name, group = selected_class.split(' - ')
+                    remove_class_from_db(id, class_name, group)
+                st.success("Clases eliminadas con éxito")
         else:
             st.warning("No tienes clases registradas para eliminar")
-
+            
         
 
 # Timetable Creator tab
