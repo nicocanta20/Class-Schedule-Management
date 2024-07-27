@@ -431,9 +431,9 @@ def timetable_creator():
         class_names = list(set(cls['name'] for cls in parsed_classes))
 
         # Add multiselect for mandatory classes
-        mandatory_classes = st.multiselect("Seleccioná las clases que quisieras probar en los posibles calendarios", class_names,placeholder='Elegir clases')
+        mandatory_classes = st.multiselect("Seleccioná las clases que quisieras probar en los posibles calendarios", class_names,placeholder='Elegir clases',max_selections=6)
 
-        num_classes = st.number_input("Número de clases a asistir", min_value=len(mandatory_classes), max_value=len(class_names), step=1)
+        num_classes = st.number_input("Número de clases a asistir. No se pueden mas de 6 clases a la vez.", min_value=len(mandatory_classes), max_value=6, step=1)
 
         # User input for selecting free days
         days_of_week = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']
