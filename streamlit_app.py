@@ -17,7 +17,7 @@ mongo_user = st.secrets["MONGODB"]["user"]
 mongo_password = st.secrets["MONGODB"]["password"]
 
 # MongoDB Atlas Connection
-mongo_uri = f"mongodb+srv://{mongo_user}:{mongo_password}@cluster0.rkdwvgd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+mongo_uri = f"mongodb+srv://{mongo_user}:{mongo_password}@cluster0.borki.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 client = MongoClient(mongo_uri)
 db = client["class_schedule_db"]
 collection = db["class_entries"]
