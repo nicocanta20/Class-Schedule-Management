@@ -7,7 +7,7 @@ from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 import os
-from icalendar import Calendar, Event, vDatetime
+from icalendar import Calendar, Event
 import pytz
 from pymongo import MongoClient
 import re
@@ -222,7 +222,7 @@ def main():
 
     # Sidebar for id or University File Number
     st.sidebar.header("Información del usuario")
-    id = st.sidebar.text_input("Ingresá tu número de legajo")
+    id = st.sidebar.text_input("Ingresá tu número de legajo/dni")
 
     # Save id to session state
     if id:
@@ -337,7 +337,7 @@ def class_logger():
         st.warning("Por favor, ingresá tu número de legajo en la barra lateral para registrar una clase.")
         return
     
-    tab1, tab2, tab3 = st.tabs(["Añadir clase una por una", "Añadir clases en cantidad", "Eliminar clases"])
+    tab1, tab2 = st.tabs(["Añadir clase una por una", "Eliminar clases"])
 
     with tab1:
         class_name = st.text_input("Nombre de la clase")
@@ -384,18 +384,6 @@ def class_logger():
             st.success("Clase registrada y guardada con éxito.")
 
     with tab2:
-        st.write('Esta función es para los estudiantes de Ditella que pueden copiar y pegar las materias de [esta página](https://lookerstudio.google.com/u/1/reporting/56ee8002-2c18-425f-b3c9-5f107da7d0f8/page/hAzCD).')
-        raw_data = st.text_area("Pega los datos de las clases aquí. (solo copiar y pegar el contenido de las materias)", height=300)
-        submit_button_bulk = st.button("Registrar clases en bloque")
-
-        if submit_button_bulk and raw_data:
-            classes = parse_schedule_data(raw_data)
-            for new_class in classes:
-                save_class_to_db(id, new_class)
-                # display_class_entry(new_class)
-            st.success("Clases registradas y guardadas con éxito.")
-
-    with tab3:
         classes = get_classes_from_db(id)
         if classes:
             class_names = [f"{cls['name']} - {cls['group']}" for cls in classes]
