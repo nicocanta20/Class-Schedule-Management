@@ -12,7 +12,7 @@ Effortlessly explore all possible timetable combinations, generating highly pers
 Clone the repository and install dependencies:
 ```bash
 git clone https://github.com/nicocanta20/Class-Schedule-Management
-cd class-schedule-management-app
+cd Class-Schedule-Management
 pip install -r requirements.txt
 ```
 
